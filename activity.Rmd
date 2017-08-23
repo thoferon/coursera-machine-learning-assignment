@@ -1,0 +1,65 @@
+---
+title: "Predicting physicial activity"
+author: "Thomas Feron"
+date: "18 August 2017"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE)
+```
+
+## Data 
+
+```{r}
+training <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", na.strings = c("NA", ""))
+unknown  <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",  na.strings = c("NA", ""))
+```
+
+A lot of the rows have missing values but they are located in a few columns with a lot of missing values. Let's just get rid of those columns as they would not be very useful for predictions considering how many values are missing.
+
+```{r}
+training <- training[,sapply(training, function(col) { sum(is.na(col)) == 0 })]
+training <- training[,-c(1,3,4,5,6,7,8)]
+unknown <- unknown[,c(names(training)[-53], "problem_id")]
+
+inClass <- createDataPartition(training$classe, p = 0.6, list = FALSE)
+testing  <- training[-inClass,]
+training <- training[inClass,]
+```
+
+## Model
+
+We now train a random forest model on this tidy data set using K-fold cross validation (k = 5) to improve on the accuracy. Random forest will try to split the data set on some feature repeatedly to classify the data points. This seems to be a good solution to the problem at hand and, as we shall see, the resulting accuracy is quite good.
+
+```{r}
+library(caret)
+set.seed(31415)
+ctrl <- trainControl(method = "cv", number = 5)
+fit <- train(classe ~ ., method = "rf", data = training, trControl = ctrl)
+```
+
+## Out-of-sample error
+
+To estimate the out-of-sample error, let's calculate the accuracy on the testing set.
+
+```{r}
+preds <- predict(fit, newdata = testing)
+confusionMatrix(preds, testing$classe)
+```
+
+```{r echo=FALSE}
+accuracy <- sum(preds == testing$classe) / nrow(testing)
+```
+
+We see the accuracy is of `r round(accuracy*100, 2)`% so the estimated error rate is `r round((1 - accuracy)*100, 2)`%.
+
+## Predictions
+
+We now use our model to predict the classe of the unknown data set.
+
+```{r}
+predict(fit, newdata = unknown)
+```
